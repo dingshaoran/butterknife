@@ -1,6 +1,55 @@
 Change Log
 ==========
 
+Version 10.2.3 *(2020-08-12)*
+-----------------------------
+
+Heads up: Development on this tool is winding down as [view binding](https://developer.android.com/topic/libraries/view-binding) is stable in AS/AGP 3.6+.
+
+ * Fix: Support receiving `MotionEvent` in an `@OnTouch` callback when using 'butterknife-reflect'.
+
+
+Version 10.2.2 *(2020-08-03)*
+-----------------------------
+
+Heads up: Development on this tool is winding down as [view binding](https://developer.android.com/topic/libraries/view-binding) is stable in AS/AGP 3.6+.
+
+ * Fix: Views detached while processing click callbacks will no longer disable future clicks on other views.
+
+
+Version 10.2.1 *(2019-12-19)*
+-----------------------------
+
+Heads up: Development on this tool is winding down as [view binding](https://developer.android.com/topic/libraries/view-binding) will be stable in AS/AGP 3.6.
+
+ * New: Make R2-generating Gradle task cacheable by default.
+ * Fix: R2 classes now generate their own unique values for entries. This ensures that the annotation processor
+   can always do a reverse mapping from ID back to name and type. In AGP 3.6.0, the `R.txt` symbol table that was
+   previously used as a source for values now uses 0 for every entry which required this change.
+ * Fix: Lint check for R2 values now properly handles static imports for entries.
+
+
+Version 10.2.0 *(2019-09-12)*
+-----------------------------
+
+ * New: Support incremental annotation processing.
+ * Fix: Detect generated superclass bindings across compilation units.
+ * Fix: Avoid deprecated APIs from the Android Gradle plugin. As a result, the new minimum supported version
+   of the Android Gradle plugin is 3.3.
+
+
+Version 10.1.0 *(2019-02-13)*
+-----------------------------
+
+ * New: Listeners which require return values (e.g., long click) can now be bound to methods returning `void`.
+   The default value of `true` will be returned in this case.
+ * New: Add support for `@OnTextChanged` and `@OnPageChange` to reflection backend.
+ * Remove enforcement of required views in the reflection backend. Most `@Nullable` annotations do not have
+   runtime retention so they can't be checked at runtime with reflection. Instead of forcing everyone to find
+   a new annotation, this enforcement is now dropped. While this might lead to nulls in otherwise required
+   view bindings, they'll either be unused or quickly cause a `NullPointerException`.
+
+
 Version 10.0.0 *(2019-01-03)*
 -----------------------------
 

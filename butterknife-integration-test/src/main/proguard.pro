@@ -1,5 +1,7 @@
 -dontoptimize
 -dontobfuscate
+-dontnote **
+-dontwarn **
 
 # STUFF USED BY TESTS:
 
@@ -13,4 +15,8 @@
 
 -keep class com.example.butterknife.unbinder.H {
   <init>(...);
+}
+
+-keep class androidx.core.** {
+  <methods>;
 }

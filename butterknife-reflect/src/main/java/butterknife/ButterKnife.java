@@ -10,11 +10,14 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
 import android.widget.AdapterView;
 import android.widget.CompoundButton;
 import android.widget.TextView;
@@ -23,9 +26,9 @@ import androidx.annotation.Nullable;
 import androidx.annotation.UiThread;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.res.ResourcesCompat;
+import androidx.viewpager.widget.ViewPager;
 import butterknife.internal.Constants;
 import butterknife.internal.Utils;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -212,6 +215,12 @@ public final class ButterKnife {
         unbinder = parseOnLongClick(target, method, source);
         if (unbinder != null) unbinders.add(unbinder);
 
+        unbinder = parseOnPageChange(target, method, source);
+        if (unbinder != null) unbinders.add(unbinder);
+
+        unbinder = parseOnTextChanged(target, method, source);
+        if (unbinder != null) unbinders.add(unbinder);
+
         unbinder = parseOnTouch(target, method, source);
         if (unbinder != null) unbinders.add(unbinder);
       }
@@ -236,15 +245,18 @@ public final class ButterKnife {
     validateMember(field);
 
     int id = bindView.value();
-    boolean isRequired = isRequired(field);
     Class<?> viewClass = field.getType();
-    String who = "field '" + field.getName() + "'";
-    Object view;
-    if (isRequired) {
-      view = Utils.findRequiredViewAsType(source, id, who, viewClass);
-    } else {
-      view = Utils.findOptionalViewAsType(source, id, who, viewClass);
+    if (!View.class.isAssignableFrom(viewClass) && !viewClass.isInterface()) {
+      throw new IllegalStateException(
+          "@BindView fields must extend from View or be an interface. ("
+              + field.getDeclaringClass().getName()
+              + '.'
+              + field.getName()
+              + ')');
     }
+
+    String who = "field '" + field.getName() + "'";
+    Object view = Utils.findOptionalViewAsType(source, id, who, viewClass);
     trySet(field, target, view);
 
     return new FieldUnbinder(target, field);
@@ -269,23 +281,41 @@ public final class ButterKnife {
         // TODO real rawType impl!!!!
         viewClass = (Class<?>) viewType;
       } else {
-        throw new IllegalStateException(); // TODO
+        throw new IllegalStateException("@BindViews List must have a generic component. ("
+            + field.getDeclaringClass().getName()
+            + '.'
+            + field.getName()
+            + ')');
       }
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindViews must be a List or array. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
+    }
+    if (!View.class.isAssignableFrom(viewClass) && !viewClass.isInterface()) {
+      throw new IllegalStateException(
+          "@BindViews List or array type must extend from View or be an interface. ("
+              + field.getDeclaringClass().getName()
+              + '.'
+              + field.getName()
+              + ')');
     }
 
     int[] ids = bindViews.value();
-    boolean isRequired = isRequired(field);
+    if (ids.length == 0) {
+      throw new IllegalStateException("@BindViews must specify at least one ID. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
+    }
+
     List<Object> views = new ArrayList<>(ids.length);
     String who = "field '" + field.getName() + "'";
     for (int id : ids) {
-      Object view;
-      if (isRequired) {
-        view = Utils.findRequiredViewAsType(source, id, who, viewClass);
-      } else {
-        view = Utils.findOptionalViewAsType(source, id, who, viewClass);
-      }
+      Object view = Utils.findOptionalViewAsType(source, id, who, viewClass);
       if (view != null) {
         views.add(view);
       }
@@ -311,14 +341,18 @@ public final class ButterKnife {
     validateMember(field);
 
     int id = bindAnim.value();
-    Resources resources = source.getContext().getResources();
+    Context context = source.getContext();
 
     Object value;
     Class<?> fieldType = field.getType();
     if (fieldType == Animation.class) {
-      value = resources.getAnimation(id);
+      value = AnimationUtils.loadAnimation(context, id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindAnim field type must be 'Animation'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -348,10 +382,20 @@ public final class ButterKnife {
       } else if (componentType == CharSequence.class) {
         value = resources.getTextArray(id);
       } else {
-        throw new IllegalStateException(); // TODO
+        throw new IllegalStateException("@BindArray field type must be one of: "
+            + "String[], int[], CharSequence[], android.content.res.TypedArray. ("
+            + field.getDeclaringClass().getName()
+            + '.'
+            + field.getName()
+            + ')');
       }
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindArray field type must be one of: "
+          + "String[], int[], CharSequence[], android.content.res.TypedArray. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -373,7 +417,11 @@ public final class ButterKnife {
     if (fieldType == Bitmap.class) {
       value = BitmapFactory.decodeResource(resources, id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindBitmap field type must be 'Bitmap'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -395,7 +443,11 @@ public final class ButterKnife {
     if (fieldType == boolean.class) {
       value = resources.getBoolean(id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindBool field type must be 'boolean'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -419,7 +471,11 @@ public final class ButterKnife {
     } else if (fieldType == ColorStateList.class) {
       value = ContextCompat.getColorStateList(context, id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindColor field type must be 'int' or 'ColorStateList'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -443,7 +499,11 @@ public final class ButterKnife {
     } else if (fieldType == float.class) {
       value = resources.getDimension(id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindDimen field type must be 'int' or 'float'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -468,7 +528,11 @@ public final class ButterKnife {
           ? Utils.getTintedDrawable(context, id, tint)
           : ContextCompat.getDrawable(context, id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindDrawable field type must be 'Drawable'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -490,7 +554,11 @@ public final class ButterKnife {
     if (fieldType == float.class) {
       value = Utils.getFloat(context, id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindFloat field type must be 'float'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -512,11 +580,29 @@ public final class ButterKnife {
     Object value;
     if (fieldType == Typeface.class) {
       Typeface font = ResourcesCompat.getFont(context, id);
-      value = style != Typeface.NORMAL
-          ? Typeface.create(font, style)
-          : font;
+      switch (style) {
+        case Typeface.NORMAL:
+          value = font;
+          break;
+        case Typeface.BOLD:
+        case Typeface.ITALIC:
+        case Typeface.BOLD_ITALIC:
+          value = Typeface.create(font, style);
+          break;
+        default:
+          throw new IllegalStateException(
+              "@BindFont style must be NORMAL, BOLD, ITALIC, or BOLD_ITALIC. ("
+                  + field.getDeclaringClass().getName()
+                  + '.'
+                  + field.getName()
+                  + ')');
+      }
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindFont field type must be 'Typeface'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -538,7 +624,11 @@ public final class ButterKnife {
     if (fieldType == int.class) {
       value = resources.getInteger(id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindInt field type must be 'int'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -560,7 +650,11 @@ public final class ButterKnife {
     if (fieldType == String.class) {
       value = context.getString(id);
     } else {
-      throw new IllegalStateException(); // TODO
+      throw new IllegalStateException("@BindString field type must be 'String'. ("
+          + field.getDeclaringClass().getName()
+          + '.'
+          + field.getName()
+          + ')');
     }
     trySet(field, target, value);
 
@@ -629,7 +723,7 @@ public final class ButterKnife {
       //noinspection SimplifiableConditionalExpression
       return propagateReturn
           ? (boolean) value
-          : false;
+          : true;
     });
 
     return new ListenerUnbinder<>(views, ON_EDITOR_ACTION);
@@ -698,7 +792,7 @@ public final class ButterKnife {
       //noinspection SimplifiableConditionalExpression
       return propagateReturn
           ? (boolean) value
-          : false;
+          : true;
     });
 
     return new ListenerUnbinder<>(views, ON_ITEM_LONG_CLICK);
@@ -723,10 +817,116 @@ public final class ButterKnife {
       //noinspection SimplifiableConditionalExpression
       return propagateReturn
           ? (boolean) returnValue
-          : false;
+          : true;
     });
 
     return new ListenerUnbinder<>(views, ON_LONG_CLICK);
+  }
+
+  private static @Nullable Unbinder parseOnPageChange(final Object target, final Method method,
+      View source) {
+    OnPageChange onPageChange = method.getAnnotation(OnPageChange.class);
+    if (onPageChange == null) {
+      return null;
+    }
+    validateMember(method);
+    validateReturnType(method, void.class);
+
+    List<ViewPager> views =
+        findViews(source, onPageChange.value(), isRequired(method), method.getName(),
+            ViewPager.class);
+
+    ViewPager.OnPageChangeListener listener;
+    switch (onPageChange.callback()) {
+      case PAGE_SCROLLED: {
+        ArgumentTransformer argumentTransformer =
+            createArgumentTransformer(method, ON_PAGE_SCROLLED_TYPES);
+        listener = new ViewPager.SimpleOnPageChangeListener() {
+          @Override public void onPageScrolled(int position, float positionOffset,
+              int positionOffsetPixels) {
+            tryInvoke(method, target,
+                argumentTransformer.transform(position, positionOffset, positionOffsetPixels));
+          }
+        };
+        break;
+      }
+      case PAGE_SELECTED: {
+        ArgumentTransformer argumentTransformer =
+            createArgumentTransformer(method, ON_PAGE_SELECTED_TYPES);
+        listener = new ViewPager.SimpleOnPageChangeListener() {
+          @Override public void onPageSelected(int position) {
+            tryInvoke(method, target, argumentTransformer.transform(position));
+          }
+        };
+        break;
+      }
+      case PAGE_SCROLL_STATE_CHANGED: {
+        ArgumentTransformer argumentTransformer =
+            createArgumentTransformer(method, ON_PAGE_SCROLL_STATE_CHANGED_TYPES);
+        listener = new ViewPager.SimpleOnPageChangeListener() {
+          @Override public void onPageScrollStateChanged(int state) {
+            tryInvoke(method, target, argumentTransformer.transform(state));
+          }
+        };
+        break;
+      }
+      default:
+        throw new AssertionError();
+    }
+
+    ViewCollections.set(views, ADD_ON_PAGE_CHANGE, listener);
+    return new ListenerUnbinder<>(views, REMOVE_ON_PAGE_CHANGE, listener);
+  }
+
+  private static @Nullable Unbinder parseOnTextChanged(Object target, Method method, View source) {
+    OnTextChanged onTextChanged = method.getAnnotation(OnTextChanged.class);
+    if (onTextChanged == null) {
+      return null;
+    }
+    validateMember(method);
+    validateReturnType(method, void.class);
+
+    List<TextView> views =
+        findViews(source, onTextChanged.value(), isRequired(method), method.getName(), View.class);
+
+    TextWatcher textWatcher;
+    switch (onTextChanged.callback()) {
+      case TEXT_CHANGED: {
+        ArgumentTransformer argumentTransformer =
+            createArgumentTransformer(method, ON_TEXT_CHANGED_TYPES);
+        textWatcher = new EmptyTextWatcher() {
+          @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+            tryInvoke(method, target, argumentTransformer.transform(s, start, before, count));
+          }
+        };
+        break;
+      }
+      case BEFORE_TEXT_CHANGED: {
+        ArgumentTransformer argumentTransformer =
+            createArgumentTransformer(method, BEFORE_TEXT_CHANGED_TYPES);
+        textWatcher = new EmptyTextWatcher() {
+          @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            tryInvoke(method, target, argumentTransformer.transform(s, start, count, after));
+          }
+        };
+        break;
+      }
+      case AFTER_TEXT_CHANGED: {
+        ArgumentTransformer argumentTransformer =
+            createArgumentTransformer(method, AFTER_TEXT_CHANGED_TYPES);
+        textWatcher = new EmptyTextWatcher() {
+          @Override public void afterTextChanged(Editable s) {
+            tryInvoke(method, target, argumentTransformer.transform(s));
+          }
+        };
+        break;
+      }
+      default:
+        throw new AssertionError();
+    }
+
+    ViewCollections.set(views, ADD_TEXT_WATCHER, textWatcher);
+    return new ListenerUnbinder<>(views, REMOVE_TEXT_WATCHER, textWatcher);
   }
 
   private static @Nullable Unbinder parseOnTouch(final Object target, final Method method,
@@ -744,11 +944,11 @@ public final class ButterKnife {
         findViews(source, onTouch.value(), isRequired(method), method.getName(), View.class);
 
     ViewCollections.set(views, ON_TOUCH, (v, event) -> {
-      Object returnValue = tryInvoke(method, target, argumentTransformer.transform(v));
+      Object returnValue = tryInvoke(method, target, argumentTransformer.transform(v, event));
       //noinspection SimplifiableConditionalExpression
       return propagateReturn
           ? (boolean) returnValue
-          : false;
+          : true;
     });
 
     return new ListenerUnbinder<>(views, ON_TOUCH);
@@ -805,15 +1005,6 @@ public final class ButterKnife {
           + method.getName()
           + " must have return type of "
           + expectedType);
-    }
-    return true;
-  }
-
-  private static boolean isRequired(Field field) {
-    for (Annotation annotation : field.getAnnotations()) {
-      if (annotation.annotationType().getSimpleName().equals("Nullable")) {
-        return false;
-      }
     }
     return true;
   }
@@ -962,6 +1153,14 @@ public final class ButterKnife {
       (view, value, index) -> view.setOnLongClickListener(value);
   private static final Setter<View, View.OnTouchListener> ON_TOUCH =
       (view, value, index) -> view.setOnTouchListener(value);
+  private static final Setter<ViewPager, ViewPager.OnPageChangeListener> ADD_ON_PAGE_CHANGE =
+      (view, value, index) -> view.addOnPageChangeListener(value);
+  private static final Setter<ViewPager, ViewPager.OnPageChangeListener> REMOVE_ON_PAGE_CHANGE =
+      (view, value, index) -> view.removeOnPageChangeListener(value);
+  private static final Setter<TextView, TextWatcher> ADD_TEXT_WATCHER =
+      (view, value, index) -> view.addTextChangedListener(value);
+  private static final Setter<TextView, TextWatcher> REMOVE_TEXT_WATCHER =
+      (view, value, index) -> view.removeTextChangedListener(value);
 
   private static final Class<?>[] ON_CHECKED_CHANGED_TYPES =
       { CompoundButton.class, boolean.class };
@@ -973,6 +1172,13 @@ public final class ButterKnife {
       { AdapterView.class, View.class, int.class, long.class };
   private static final Class<?>[] ON_ITEM_LONG_CLICK_TYPES = ON_ITEM_CLICK_TYPES;
   private static final Class<?>[] ON_LONG_CLICK_TYPES = ON_CLICK_TYPES;
+  private static final Class<?>[] ON_PAGE_SCROLLED_TYPES = { int.class, float.class, int.class };
+  private static final Class<?>[] ON_PAGE_SELECTED_TYPES = { int.class };
+  private static final Class<?>[] ON_PAGE_SCROLL_STATE_CHANGED_TYPES = { int.class };
+  private static final Class<?>[] ON_TEXT_CHANGED_TYPES =
+      { CharSequence.class, int.class, int.class, int.class };
+  private static final Class<?>[] BEFORE_TEXT_CHANGED_TYPES = ON_TEXT_CHANGED_TYPES;
+  private static final Class<?>[] AFTER_TEXT_CHANGED_TYPES = { Editable.class };
   private static final Class<?>[] ON_TOUCH_TYPES = { View.class, MotionEvent.class };
 
   private interface ArgumentTransformer {

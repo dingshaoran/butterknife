@@ -1,5 +1,6 @@
 package com.example.butterknife.functional;
 
+import android.app.Instrumentation;
 import android.content.Context;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,6 +21,8 @@ import static org.junit.Assume.assumeFalse;
 
 @SuppressWarnings("unused") // Used reflectively / by code gen.
 public final class OnClickTest {
+  private final Instrumentation instrumentation = InstrumentationRegistry.getInstrumentation();
+
   static final class Simple {
     int clicks = 0;
 
@@ -29,19 +32,23 @@ public final class OnClickTest {
   }
 
   @Test public void simple() {
-    View tree = treeWithIds(1);
+    View tree = ViewTree.create(1);
     View view1 = tree.findViewById(1);
 
     Simple target = new Simple();
     Unbinder unbinder = ButterKnife.bind(target, tree);
     assertEquals(0, target.clicks);
 
-    view1.performClick();
-    assertEquals(1, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view1.performClick();
+      assertEquals(1, target.clicks);
+    });
 
-    unbinder.unbind();
-    view1.performClick();
-    assertEquals(1, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      unbinder.unbind();
+      view1.performClick();
+      assertEquals(1, target.clicks);
+    });
   }
 
   static final class MultipleBindings {
@@ -59,19 +66,23 @@ public final class OnClickTest {
   @Test public void multipleBindings() {
     assumeFalse("Not implemented", BuildConfig.FLAVOR.equals("reflect")); // TODO
 
-    View tree = treeWithIds(1);
+    View tree = ViewTree.create(1);
     View view1 = tree.findViewById(1);
 
     MultipleBindings target = new MultipleBindings();
     Unbinder unbinder = ButterKnife.bind(target, tree);
     assertEquals(0, target.clicks);
 
-    view1.performClick();
-    assertEquals(2, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view1.performClick();
+      assertEquals(2, target.clicks);
+    });
 
-    unbinder.unbind();
-    view1.performClick();
-    assertEquals(2, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      unbinder.unbind();
+      view1.performClick();
+      assertEquals(2, target.clicks);
+    });
   }
 
   static final class Visibilities {
@@ -91,7 +102,7 @@ public final class OnClickTest {
   }
 
   @Test public void visibilities() {
-    View tree = treeWithIds(1, 2, 3);
+    View tree = ViewTree.create(1, 2, 3);
     View view1 = tree.findViewById(1);
     View view2 = tree.findViewById(2);
     View view3 = tree.findViewById(3);
@@ -100,14 +111,20 @@ public final class OnClickTest {
     ButterKnife.bind(target, tree);
     assertEquals(0, target.clicks);
 
-    view1.performClick();
-    assertEquals(1, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view1.performClick();
+      assertEquals(1, target.clicks);
+    });
 
-    view2.performClick();
-    assertEquals(2, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view2.performClick();
+      assertEquals(2, target.clicks);
+    });
 
-    view3.performClick();
-    assertEquals(3, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view3.performClick();
+      assertEquals(3, target.clicks);
+    });
   }
 
   static final class MultipleIds {
@@ -119,7 +136,7 @@ public final class OnClickTest {
   }
 
   @Test public void multipleIds() {
-    View tree = treeWithIds(1, 2);
+    View tree = ViewTree.create(1, 2);
     View view1 = tree.findViewById(1);
     View view2 = tree.findViewById(2);
 
@@ -127,16 +144,22 @@ public final class OnClickTest {
     Unbinder unbinder = ButterKnife.bind(target, tree);
     assertEquals(0, target.clicks);
 
-    view1.performClick();
-    assertEquals(1, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view1.performClick();
+      assertEquals(1, target.clicks);
+    });
 
-    view2.performClick();
-    assertEquals(2, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view2.performClick();
+      assertEquals(2, target.clicks);
+    });
 
-    unbinder.unbind();
-    view1.performClick();
-    view2.performClick();
-    assertEquals(2, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      unbinder.unbind();
+      view1.performClick();
+      view2.performClick();
+      assertEquals(2, target.clicks);
+    });
   }
 
   static final class OptionalId {
@@ -148,35 +171,43 @@ public final class OnClickTest {
   }
 
   @Test public void optionalIdPresent() {
-    View tree = treeWithIds(1);
+    View tree = ViewTree.create(1);
     View view1 = tree.findViewById(1);
 
     OptionalId target = new OptionalId();
     Unbinder unbinder = ButterKnife.bind(target, tree);
     assertEquals(0, target.clicks);
 
-    view1.performClick();
-    assertEquals(1, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view1.performClick();
+      assertEquals(1, target.clicks);
+    });
 
-    unbinder.unbind();
-    view1.performClick();
-    assertEquals(1, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      unbinder.unbind();
+      view1.performClick();
+      assertEquals(1, target.clicks);
+    });
   }
 
   @Test public void optionalIdAbsent() {
-    View tree = treeWithIds(2);
+    View tree = ViewTree.create(2);
     View view2 = tree.findViewById(2);
 
     OptionalId target = new OptionalId();
     Unbinder unbinder = ButterKnife.bind(target, tree);
     assertEquals(0, target.clicks);
 
-    view2.performClick();
-    assertEquals(0, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      view2.performClick();
+      assertEquals(0, target.clicks);
+    });
 
-    unbinder.unbind();
-    view2.performClick();
-    assertEquals(0, target.clicks);
+    instrumentation.runOnMainSync(() -> {
+      unbinder.unbind();
+      view2.performClick();
+      assertEquals(0, target.clicks);
+    });
   }
 
   static final class ArgumentCast {
@@ -206,12 +237,6 @@ public final class OnClickTest {
       MyView(Context context) {
         super(context);
       }
-
-      @Override public boolean post(Runnable action) {
-        // Because of DebouncingOnClickListener, we run any posted Runnables synchronously.
-        action.run();
-        return true;
-      }
     }
 
     View view1 = new MyView(InstrumentationRegistry.getContext());
@@ -231,40 +256,24 @@ public final class OnClickTest {
     ArgumentCast target = new ArgumentCast();
     ButterKnife.bind(target, tree);
 
-    view1.performClick();
-    assertSame(view1, target.last);
+    instrumentation.runOnMainSync(() -> {
+      view1.performClick();
+      assertSame(view1, target.last);
+    });
 
-    view2.performClick();
-    assertSame(view2, target.last);
+    instrumentation.runOnMainSync(() -> {
+      view2.performClick();
+      assertSame(view2, target.last);
+    });
 
-    view3.performClick();
-    assertSame(view3, target.last);
+    instrumentation.runOnMainSync(() -> {
+      view3.performClick();
+      assertSame(view3, target.last);
+    });
 
-    view4.performClick();
-    assertSame(view4, target.last);
-  }
-
-  private static View treeWithIds(int... ids) {
-    Context context = InstrumentationRegistry.getContext();
-    FrameLayout group = new FrameLayout(context);
-
-    class SuperGrossView extends View {
-      SuperGrossView(Context context) {
-        super(context);
-      }
-
-      @Override public boolean post(Runnable action) {
-        // Because of DebouncingOnClickListener, we run any posted Runnables synchronously.
-        action.run();
-        return true;
-      }
-    }
-
-    for (int id : ids) {
-      View view = new SuperGrossView(context);
-      view.setId(id);
-      group.addView(view);
-    }
-    return group;
+    instrumentation.runOnMainSync(() -> {
+      view4.performClick();
+      assertSame(view4, target.last);
+    });
   }
 }

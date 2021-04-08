@@ -1,16 +1,19 @@
-package butterknife.functional;
+package com.example.butterknife.functional;
 
 import android.content.Context;
+import android.view.View;
 import androidx.test.InstrumentationRegistry;
 import butterknife.BindArray;
+import butterknife.ButterKnife;
 import butterknife.Unbinder;
-import butterknife.runtime.test.R;
+import com.example.butterknife.test.R;
 import org.junit.Test;
 
 import static com.google.common.truth.Truth.assertThat;
 
 public final class BindArrayTest {
   private final Context context = InstrumentationRegistry.getContext();
+  private final View tree = ViewTree.create(1);
 
   static class StringArrayTarget {
     @BindArray(R.array.string_one_two_three) String[] actual;
@@ -20,7 +23,7 @@ public final class BindArrayTest {
     StringArrayTarget target = new StringArrayTarget();
     String[] expected = context.getResources().getStringArray(R.array.string_one_two_three);
 
-    Unbinder unbinder = new BindArrayTest$StringArrayTarget_ViewBinding(target, context);
+    Unbinder unbinder = ButterKnife.bind(target, tree);
     assertThat(target.actual).isEqualTo(expected);
 
     unbinder.unbind();
@@ -35,7 +38,7 @@ public final class BindArrayTest {
     IntArrayTarget target = new IntArrayTarget();
     int[] expected = context.getResources().getIntArray(R.array.int_one_two_three);
 
-    Unbinder unbinder = new BindArrayTest$IntArrayTarget_ViewBinding(target, context);
+    Unbinder unbinder = ButterKnife.bind(target, tree);
     assertThat(target.actual).isEqualTo(expected);
 
     unbinder.unbind();
@@ -50,7 +53,7 @@ public final class BindArrayTest {
     CharSequenceArrayTarget target = new CharSequenceArrayTarget();
     CharSequence[] expected = context.getResources().getTextArray(R.array.int_one_two_three);
 
-    Unbinder unbinder = new BindArrayTest$CharSequenceArrayTarget_ViewBinding(target, context);
+    Unbinder unbinder = ButterKnife.bind(target, tree);
     assertThat(target.actual).isEqualTo(expected);
 
     unbinder.unbind();
